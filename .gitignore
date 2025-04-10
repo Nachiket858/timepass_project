@@ -1,0 +1,29 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Uploaded images (if stored on disk, but you're using base64 in DB now)
+uploads/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.vscode/
+.idea/
+
+# OS generated
+*.swp
+*.swo
+
+# Optional if you're using coverage or testing
+coverage/
+index.html
