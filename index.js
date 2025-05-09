@@ -1,19 +1,17 @@
-
-
-  const express = require('express');
+const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
-const path = require('path');
 const cors = require('cors');
+const { v2: cloudinary } = require('cloudinary');
+const streamifier = require('streamifier'); // Required to stream buffer to Cloudinary
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Database connection
+// MongoDB connection
 mongoose.connect('mongodb+srv://aab258025:fKzaDAccjrrvSH4r@cluster0clu.rqounwe.mongodb.net/', {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -31,34 +29,41 @@ const Visitor = mongoose.model('Visitor', {
   visitedAt: { type: Date, default: Date.now }
 });
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
+// Cloudinary config
+cloudinary.config({
+  cloud_name: 'df2cnr6vm',
+  api_key: '759156692943927',
+  api_secret: '4KnweOR_kfs88VPHS8Tv-CvN08c'
 });
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 1024 * 1024 } // 1MB limit
-});
+// Multer configuration to use memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage, limits: { fileSize: 1024 * 1024 } }); // 1MB
+
+// Helper: upload image buffer to Cloudinary
+const uploadToCloudinary = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream({ folder: 'posts' }, (error, result) => {
+      if (result) resolve(result.secure_url);
+      else reject(error);
+    });
+    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
+  });
+};
 
 // Routes
 app.post('/api/posts', upload.single('image'), async (req, res) => {
   try {
     const { text } = req.body;
-    let imagePath = null;
+    let imageUrl = null;
 
     if (req.file) {
-      imagePath = `/uploads/${req.file.filename}`;
+      imageUrl = await uploadToCloudinary(req.file.buffer);
     }
 
     const post = new Post({
       text: text || null,
-      image: imagePath || null
+      image: imageUrl || null
     });
 
     await post.save();
@@ -78,7 +83,7 @@ app.get('/api/posts', async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
-      
+
     res.json(posts);
   } catch (err) {
     res.status(500).json({ error: err.message });
